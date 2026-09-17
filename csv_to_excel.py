@@ -46,6 +46,20 @@ ENCODINGS = ("utf-8-sig", "utf-8", "cp1251", "cp1252", "latin-1")
 DELIMITERS = (",", ";", "\t", "|")
 SUFFIXES = (".csv", ".tsv", ".txt", ".xlsx", ".xlsm")
 
+# Names that carry a data extension but are not data. Excel leaves a hidden
+# "~$name.xlsx" beside every workbook it currently has open, and macOS leaves
+# "._name.xlsx" on anything that travelled through a USB stick. Both end in
+# .xlsx, neither can be read - the first is locked by Excel, the second is a
+# fragment. A client who runs this on a folder while one file is open in
+# Excel would otherwise get a SKIPPED line about a file they cannot even see,
+# which reads as a broken tool. Found on 17.09.2026, on a real folder.
+JUNK_PREFIXES = ("~$", "._")
+
+
+def is_junk(path):
+    """True for an editor lock file or a resource-fork stub."""
+    return Path(path).name.startswith(JUNK_PREFIXES)
+
 HEAD_FILL = PatternFill("solid", fgColor="1F3864")
 HEAD_FONT = Font(color="FFFFFF", bold=True)
 THIN = Side(style="thin", color="D9D9D9")
@@ -915,6 +929,37 @@ def totals(records):
     ]
 
 
+def band_height(ws, band, font_size=9, line=11.5, pad=7, floor=26):
+    """How tall row 4 must be for every headline label to be readable.
+
+    A wrapped label needs one line per (roughly) column-width characters,
+    and the word cannot be split, so a long word forces its own line.
+    Excel's own autofit does not run on a file written by a program, which
+    is why this is computed rather than left to the reader's Excel."""
+    most = 1
+    for j, (label, _) in enumerate(band, start=1):
+        width = ws.column_dimensions[get_column_letter(j)].width or 12
+        # Deliberately pessimistic: the column width is measured in
+        # characters of the default font, and a bold label is wider per
+        # character. A row one line too tall costs nothing; a label cut in
+        # half is what the client sees first.
+        per_line = max(int(width), 1)
+        lines, current = 1, 0
+        for word in str(label).split():
+            need = len(word) if current == 0 else current + 1 + len(word)
+            if need <= per_line:
+                current = need
+            else:
+                lines += 1
+                current = len(word)
+            # a single word longer than the column wraps inside itself
+            while current > per_line:
+                lines += 1
+                current -= per_line
+        most = max(most, lines)
+    return max(floor, most * line + pad)
+
+
 def write_summary(ws, records):
     ws["A1"] = "CSV TO EXCEL — cleaning summary"
     ws["A1"].font = Font(bold=True, size=16)
@@ -961,6 +1006,14 @@ def write_summary(ws, records):
         ws.column_dimensions[letter].width = min(
             max(len(c) + 3, widest + 3, 12), 40)
         ws.cell(row=head_row, column=j).border = BORDER
+
+    # The headline band sits in the same columns as the table below, but its
+    # labels are not the table's headers - "empty columns dropped" can land
+    # in a column sized for "rows kept". Row 4 was a fixed 26 points, so the
+    # label was cut off and the client read "columns dropped" in the most
+    # prominent part of the report. Found on 17.09.2026 by opening the file
+    # and looking at it; no test sees this.
+    ws.row_dimensions[4].height = band_height(ws, band)
     ws.freeze_panes = f"A{head_row + 1}"
 
 
@@ -1194,6 +1247,28 @@ def build(paths, out, dedupe=True, merge=False):
     return records
 
 
+def collect_inputs(items):
+    """Turn the command line into the list of files that will be read.
+
+    Kept separate from main() so the rule about lock files is covered by
+    the test suite rather than by whoever runs it next."""
+    paths = []
+    for item in items:
+        p = Path(item)
+        if p.is_dir():
+            paths += sorted(q for q in p.iterdir()
+                            if q.suffix.lower() in SUFFIXES and not is_junk(q))
+        elif p.is_file():
+            if is_junk(p):
+                print(f"  ignored: {p.name} is a lock file left by an open "
+                      f"editor, not data")
+            else:
+                paths.append(p)
+        else:
+            print(f"  not found: {item}")
+    return paths
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="Clean a folder of CSV exports into one Excel workbook.")
@@ -1207,16 +1282,7 @@ def main():
                          "the source of each row")
     a = ap.parse_args()
 
-    paths = []
-    for item in a.inputs:
-        p = Path(item)
-        if p.is_dir():
-            paths += sorted(q for q in p.iterdir()
-                            if q.suffix.lower() in SUFFIXES)
-        elif p.is_file():
-            paths.append(p)
-        else:
-            print(f"  not found: {item}")
+    paths = collect_inputs(a.inputs)
     if not paths:
         print("No input files found.")
         sys.exit(1)

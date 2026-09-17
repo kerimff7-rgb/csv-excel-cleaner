@@ -46,6 +46,7 @@ against, each one a bug that reached the test suite:
 | A totals column that looks empty | it holds formulas with no cached value — named, not dropped |
 | An old `.xls`, a renamed PNG, a zip with the wrong extension | refused with a sentence saying what to do |
 | One file in the folder is unreadable | it is skipped with the reason recorded; the other nine still run |
+| A file is open in Excel while it runs | the hidden `~$` lock file beside it is ignored, not counted and not reported as a failure |
 
 Every sheet of a workbook is read as its own table.
 
@@ -102,10 +103,10 @@ that names them:
 python test_csv_to_excel.py
 ```
 
-**137 checks**, no network and no fixtures on disk — every case is built
+**150 checks**, no network and no fixtures on disk — every case is built
 in memory and asserted against a known answer.
 
-Twenty-four of them are marked `REGRESSION`. Each is a bug that was in this
+Twenty-seven of them are marked `REGRESSION`. Each is a bug that was in this
 code and shipped nothing, because it was caught here. None of them
 crashed. Every one finished, wrote a workbook that looked correct, and
 was wrong — which is the only kind of failure that reaches a user
@@ -123,6 +124,15 @@ A few, so the word is not just decoration:
   now required, and a column of plain numbers is vetoed outright.
 - Charts drawn by openpyxl with no axis labels at all, because three
   independent defaults each remove them.
+- A headline label cut in half — `empty columns dropped` rendered as
+  `columns dropped` — because the summary band shares its columns with
+  the table below it and the row height was a fixed 26 points. The
+  number under it was right. No test sees a label that does not fit;
+  this one was found by opening the file and looking.
+- A hidden `~$` lock file, which Excel keeps beside any workbook it has
+  open, counted as a sixth input file and then reported to the client as
+  a file that failed to open. The report was fine; the Summary accused a
+  file the client cannot even see.
 
 The suite above covers correctness. A second one covers survival:
 

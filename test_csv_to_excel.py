@@ -672,6 +672,79 @@ check("а Date всё же стал датой",
 
 
 
+# ======================================================================
+# 14. ФАЙЛЫ, КОТОРЫХ ЗАКАЗЧИК НЕ ВИДИТ
+# Найдено 17.09.2026 на репетиции заказа, НЕ тестами.
+# turkmenabat.xlsx был открыт в Excel. Excel держит рядом скрытый
+# ~$turkmenabat.xlsx - это блокировка, а не данные. Инструмент посчитал
+# его шестым файлом, попытался прочитать, получил Permission denied и
+# записал SKIPPED в Summary. Заказчик видит в отчёте строку про файл,
+# которого у него в папке не видно, и решает, что инструмент сломан.
+# macOS оставляет ._name.xlsx по той же схеме.
+# ======================================================================
+print("\n-- 14. служебные файлы ----------------------------------------")
+
+check("REGRESSION ~$ - это блокировка Excel, не данные",
+      M.is_junk("~$turkmenabat.xlsx"), True)
+check("REGRESSION ._ - это огрызок от macOS",
+      M.is_junk("._report.xlsx"), True)
+check("а обычное имя - данные", M.is_junk("turkmenabat.xlsx"), False)
+check("и имя с ~ не в начале тоже данные",
+      M.is_junk("otchet~$avgust.csv"), False)
+check("путь, а не только имя", M.is_junk(Path("a") / "b" / "~$x.xlsx"), True)
+
+_jd = Path(tempfile.mkdtemp())
+(_jd / "sales.csv").write_text("A,B\n1,2\n", encoding="utf-8")
+(_jd / "~$sales.xlsx").write_bytes(b"\x00\x01lock")
+(_jd / "._sales.csv").write_text("junk", encoding="utf-8")
+(_jd / "notes.md").write_text("not a table", encoding="utf-8")
+_got = [p.name for p in M.collect_inputs([str(_jd)])]
+check("REGRESSION папка отдаёт только настоящие файлы", _got, ["sales.csv"])
+
+_named = M.collect_inputs([str(_jd / "~$sales.xlsx")])
+check("и явно названный lock-файл тоже не берём", _named, [])
+
+
+# ======================================================================
+# 15. ЗАГОЛОВКИ, КОТОРЫЕ ВИДНО
+# Найдено 17.09.2026 глазами, при первом открытии отчёта в LibreOffice.
+# Верхняя полоса итогов стоит в тех же столбцах, что и таблица под ней,
+# но подписи у неё свои. "empty columns dropped" попадало в столбец,
+# ширина которого посчитана под "rows kept". Высота строки 4 была жёстко
+# задана в 26 пунктов, и заказчик читал "columns dropped" в самом
+# заметном месте отчёта. Ни один из 144 тестов этого не видел: число
+# было правильным, подпись над ним - обрезанной.
+# ======================================================================
+print("\n-- 15. высота полосы итогов ------------------------------------")
+
+_wb15 = __import__("openpyxl").Workbook()
+_ws15 = _wb15.active
+for _L, _w in (("A", 12), ("B", 40)):
+    _ws15.column_dimensions[_L].width = _w
+
+check("короткие подписи - минимальная высота",
+      M.band_height(_ws15, [("rows", 1), ("files", 2)]), 26)
+_tall = M.band_height(_ws15, [("empty columns dropped", 1), ("files", 2)])
+check("REGRESSION длинная подпись в узком столбце поднимает строку",
+      _tall > 26, True)
+check("а в широком столбце та же подпись помещается",
+      M.band_height(_ws15, [("files", 1), ("empty columns dropped", 2)]), 26)
+check("одно длинное слово в узком столбце тоже переносится",
+      M.band_height(_ws15, [("supercalifragilistic", 1)]) > 26, True)
+
+_hd = Path(tempfile.mkdtemp())
+(_hd / "h.csv").write_text("Invoice,Amount\nA-1,10.50\nA-2,20.25\n",
+                           encoding="utf-8")
+_ho = _hd / "h.xlsx"
+M.build([_hd / "h.csv"], _ho)
+_hs = __import__("openpyxl").load_workbook(_ho)["Summary"]
+_hh = _hs.row_dimensions[4].height
+check("REGRESSION в готовом отчёте строка 4 выше жёстких 26",
+      _hh > 26, True)
+check("и подпись на месте",
+      _hs.cell(4, 7).value, "empty columns dropped")
+
+
 # --------------------------------------------------------------- result
 print("\n" + "=" * 70)
 print(f"  {len(PASS)} passed, {len(FAIL)} failed, {len(PASS)+len(FAIL)} total")
