@@ -124,12 +124,21 @@ A few, so the word is not just decoration:
 - Charts drawn by openpyxl with no axis labels at all, because three
   independent defaults each remove them.
 
-The suite above covers correctness. A separate set of deliberately
-hostile inputs — zero-byte files, NUL bytes, a line a million characters
-long, ragged rows, a PNG renamed to `.csv`, 1000 columns, a filename
-full of characters Excel forbids — is run against this tool and two
-others alongside it. That file is not in this repository yet; the
-refusals it checks are visible in the table at the top.
+The suite above covers correctness. A second one covers survival:
+
+```bash
+python adversarial.py
+```
+
+**27 deliberately hostile inputs** — a zero-byte file, a file of only
+newlines, NUL bytes in the middle, a line a million characters long,
+ragged rows, a quote that is never closed, a PNG renamed to `.csv`,
+1000 columns, a filename full of characters Excel forbids, random bytes
+wearing an `.xlsx` name, a workbook of thirty sheets.
+
+The bar is not "produces a good result". The bar is: **it must not
+crash, and it must not silently produce a wrong one.** Either finish the
+job, or fail with a message saying what was wrong. All 27 pass.
 
 ---
 
