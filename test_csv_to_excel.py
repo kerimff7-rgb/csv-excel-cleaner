@@ -2,17 +2,19 @@
 Checks for csv_to_excel.py. No network, no fixtures on disk — every case is
 built in memory and asserted against a known answer.
 
-Nine of these are named REGRESSION. Each one is a bug that was in this code
-and shipped nothing, because it was caught here: a data row taken for the
-header, a label column turned into numbers, an order number turned into a
-year, an ISO date read day-first so 3 January became 1 March, a merged group
-header in a workbook beating the real one, amounts stored as text that
-stayed text, and three separate defaults that made Excel open every chart
-with no axis labels at all.
+Thirty-one of these are named REGRESSION. Each one is a bug that was in this
+code and shipped nothing, because it was caught here: a data row taken for
+the header, a label column turned into numbers, an order number turned into
+a year, an ISO date read day-first so 3 January became 1 March, a merged
+group header in a workbook beating the real one, amounts stored as text that
+stayed text, a money column read as dates, a size "10.5.2" read as 10 May
+2002, a hidden Excel lock file counted as an input, a headline label cut in
+half, and three separate defaults that made Excel open every chart with no
+axis labels at all.
 
-None of the nine crashes. Every one of them finishes, writes a workbook
-that looks correct, and is wrong — which is the only kind of failure that
-reaches a client without being noticed first.
+None of them crashes. Every one finishes, writes a workbook that looks
+correct, and is wrong — which is the only kind of failure that reaches a
+client without being noticed first.
 
     python test_csv_to_excel.py
 """
@@ -743,6 +745,30 @@ check("REGRESSION в готовом отчёте строка 4 выше жёс�
       _hh > 26, True)
 check("и подпись на месте",
       _hs.cell(4, 7).value, "empty columns dropped")
+
+
+# ======================================================================
+# 16. ДВУХ РАЗДЕЛИТЕЛЕЙ МАЛО
+# Найдено 17.09.2026 при разборе второго инструмента: правило "дата
+# требует двух разделителей" пропускает размер 10.5.2, артикул 10.20.30
+# и версию 1.2.3 - у них разделителя действительно два. Различает их
+# год: у даты с ТОЧКАМИ он из четырёх цифр.
+# ======================================================================
+print("\n-- 16. два разделителя - ещё не дата --------------------------")
+
+for _n, _v in (("размер 10.5.2", ["10.5.2", "11.5.3", "12.5.4", "9.5.1"]),
+               ("версия 1.2.3", ["1.2.3", "2.4.1", "3.0.7"]),
+               ("артикул 10.20.30", ["10.20.30", "11.20.31", "12.20.32"]),
+               ("номер 1.2", ["1.2", "3.4", "5.6"])):
+    _c, _ = M.coerce_dates(pd.Series(_v))
+    check(f"REGRESSION не дата: {_n}", _c is None, True)
+
+for _n, _v in (("точками с полным годом", ["03.02.2026", "15.07.2026"]),
+               ("ISO", ["2026-01-05", "2026-02-11"]),
+               ("слэшем, короткий год", ["12/31/26", "01/15/26"]),
+               ("тире, полный год", ["31-12-2026", "15-07-2026"])):
+    _c, _ = M.coerce_dates(pd.Series(_v))
+    check(f"по-прежнему дата: {_n}", _c is not None, True)
 
 
 # --------------------------------------------------------------- result

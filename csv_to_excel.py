@@ -376,7 +376,19 @@ DATE_HINT = re.compile(
     # as the year 4141 destroys the column silently. This cost a real bug on
     # 17.09.2026, found only because a demo invoice happened to be under
     # 10,000 and written without a thousands separator.
-    r"\d[-/.]\d+[-/.]\d"
+    # Sharpened again on 17.09.2026: two separators are necessary but not
+    # sufficient. A size "10.5.2", an article number "10.20.30" and a
+    # version "1.2.3" all have two, and all three were being read as dates.
+    # The rule that separates them: with DOTS the year must be four digits.
+    # 03.02.2026 is a date; 10.5.2 is a size. Slashes and dashes keep the
+    # two-digit year, because 12/31/26 is how half the world writes it.
+    #
+    # 31/12/26, 31-12-2026
+    r"\d{1,2}[-/]\d{1,2}[-/]\d{2,4}(?!\d)"
+    # 2026-01-12, 2026/01/12, 2026.01.12
+    r"|\d{4}[-/.]\d{1,2}[-/.]\d{1,2}(?!\d)"
+    # 03.02.2026 - dots demand a full year
+    r"|\d{1,2}\.\d{1,2}\.\d{4}(?!\d)"
     # a clock time
     r"|\d{1,2}:\d{2}"
     # or a word, which is how month names arrive

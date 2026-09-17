@@ -103,10 +103,10 @@ that names them:
 python test_csv_to_excel.py
 ```
 
-**150 checks**, no network and no fixtures on disk — every case is built
+**158 checks**, no network and no fixtures on disk — every case is built
 in memory and asserted against a known answer.
 
-Twenty-seven of them are marked `REGRESSION`. Each is a bug that was in this
+Thirty-one of them are marked `REGRESSION`. Each is a bug that was in this
 code and shipped nothing, because it was caught here. None of them
 crashed. Every one finished, wrote a workbook that looked correct, and
 was wrong — which is the only kind of failure that reaches a user
@@ -124,6 +124,9 @@ A few, so the word is not just decoration:
   now required, and a column of plain numbers is vetoed outright.
 - Charts drawn by openpyxl with no axis labels at all, because three
   independent defaults each remove them.
+- A size written `10.5.2` read as 10 May 2002, and an article
+  number `10.20.30` as 20 October 2030. Two separators are necessary for
+  a date but not sufficient: with dots, the year must be four digits.
 - A headline label cut in half — `empty columns dropped` rendered as
   `columns dropped` — because the summary band shares its columns with
   the table below it and the row height was a fixed 26 points. The
