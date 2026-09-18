@@ -46,6 +46,7 @@ against, each one a bug that reached the test suite:
 | A totals column that looks empty | it holds formulas with no cached value — named, not dropped |
 | An old `.xls`, a renamed PNG, a zip with the wrong extension | refused with a sentence saying what to do |
 | One file in the folder is unreadable | it is skipped with the reason recorded; the other nine still run |
+| A column of postal codes, phones or barcodes | kept as text — a leading zero is never dropped and a phone is never formatted as money |
 | A file is open in Excel while it runs | the hidden `~$` lock file beside it is ignored, not counted and not reported as a failure |
 
 Every sheet of a workbook is read as its own table.
@@ -103,10 +104,10 @@ that names them:
 python test_csv_to_excel.py
 ```
 
-**158 checks**, no network and no fixtures on disk — every case is built
+**167 checks**, no network and no fixtures on disk — every case is built
 in memory and asserted against a known answer.
 
-Thirty-one of them are marked `REGRESSION`. Each is a bug that was in this
+Thirty-five of them are marked `REGRESSION`. Each is a bug that was in this
 code and shipped nothing, because it was caught here. None of them
 crashed. Every one finished, wrote a workbook that looked correct, and
 was wrong — which is the only kind of failure that reaches a user
@@ -124,6 +125,11 @@ A few, so the word is not just decoration:
   now required, and a column of plain numbers is vetoed outright.
 - Charts drawn by openpyxl with no axis labels at all, because three
   independent defaults each remove them.
+- A postal code `05401` turned into the number 5401, losing its leading
+  zero for good; a phone `8025285988` rendered as `8,025,285,988`, money
+  formatting on a telephone; a barcode turned into a float. An identifier
+  is not a measure, and a leading zero or a fixed-width run of digits says
+  so.
 - A size written `10.5.2` read as 10 May 2002, and an article
   number `10.20.30` as 20 October 2030. Two separators are necessary for
   a date but not sufficient: with dots, the year must be four digits.

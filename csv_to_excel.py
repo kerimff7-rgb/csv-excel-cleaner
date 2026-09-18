@@ -427,6 +427,39 @@ def to_number(s):
         return None
 
 
+# An unbroken run of digits long enough to be an identifier rather than a
+# quantity, and a value whose first digit is a zero - which a number never
+# has and an identifier very often does.
+LONG_DIGITS = re.compile(r"^\d{7,}$")
+LEADING_ZERO = re.compile(r"^0\d+$")
+
+
+def is_identifier(vals, threshold=0.8):
+    """True when a column holds identifiers, not measures.
+
+    Found on 18.09.2026, after the same defect turned up in the API tool:
+    a postal code 05401 became the number 5401 and the leading zero was
+    gone for good, a phone 8025285988 became 8,025,285,988, and a barcode
+    became a float. None of it crashed and none of it was reported.
+
+    Two signals, both cheap and both hard to argue with:
+
+      - a leading zero. No quantity is written 05401; an identifier very
+        often is. Length does not matter here.
+      - a long unbroken run of digits, ALL THE SAME LENGTH. Phones,
+        accounts and barcodes are a fixed width; populations and amounts
+        are not, which is what keeps this from eating real numbers."""
+    zeros = vals.map(lambda v: bool(LEADING_ZERO.match(str(v).strip())))
+    if zeros.mean() >= threshold:
+        return True
+    longs = vals.map(lambda v: bool(LONG_DIGITS.match(str(v).strip())))
+    if longs.mean() >= threshold:
+        widths = {len(str(v).strip()) for v, k in zip(vals, longs) if k}
+        if len(widths) == 1:
+            return True
+    return False
+
+
 def coerce_numeric(col, threshold=0.8):
     """Convert a text column to numbers only when almost all of its
     non-empty values parse. A column that is 60% numeric is usually a text
@@ -435,6 +468,8 @@ def coerce_numeric(col, threshold=0.8):
     vals = col.dropna().astype(str)
     vals = vals[vals.str.strip() != ""]
     if len(vals) == 0:
+        return None, 0
+    if is_identifier(vals, threshold):
         return None, 0
     parsed = vals.map(to_number)
     ok = parsed.notna().sum()
