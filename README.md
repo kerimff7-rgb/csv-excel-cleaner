@@ -219,4 +219,6 @@ come back: they can check the work instead of trusting it.
 Everything in this repository is a work sample. If you want to use it
 for something, ask me.
 
+Written up: [pandas turned my money column into dates, and 123 tests said nothing](https://dev.to/kerimff7rgb/pandas-turned-my-money-column-into-dates-and-123-tests-said-nothing-3gbh)
+
 **Annamyrat Hallyyev** — Python, data cleaning, Excel automation.
